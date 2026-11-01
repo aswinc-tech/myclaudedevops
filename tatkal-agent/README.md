@@ -63,6 +63,23 @@ The full list of user problems, with sources, is in [docs/RESEARCH.md](docs/RESE
   The human sees full details in the approval prompt.
 * Every decision is written to `runs/audit.jsonl`, without OTPs or credentials.
 
+## Tatkal Copilot (web page, real IRCTC account)
+
+`copilot/index.html` is for travellers who book themselves on the official IRCTC app with their own
+account. It never logs in to IRCTC. It provides:
+
+- a countdown to the AC (10:00) and non-AC (11:00) windows, worked out from the date the train leaves
+  its origin station;
+- clock sync to internet time, using the server `Date` header and the moment the seconds tick over;
+- alerts at T-15m, T-5m, T-2m, T-30s and opening, with sound, vibration, countdown pips and keeping
+  the screen awake;
+- a checklist for the night before;
+- live "Sold out, go to option N" switching;
+- a payment-failure guide that has you check Booked Ticket History before paying again;
+- PNR capture and an optional "Ask Claude to review my plan".
+
+It is built as a claude.ai artifact; `time.txt` is the probe file the clock sync fetches.
+
 ## Quick start
 
 ```bash
