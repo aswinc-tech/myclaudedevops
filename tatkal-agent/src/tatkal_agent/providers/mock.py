@@ -18,6 +18,7 @@ import random
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
+from ..account import load_account
 from ..clock import IST, tatkal_window_open
 from ..errors import (
     AmbiguousOutcomeError,
@@ -61,6 +62,10 @@ class MockScenario:
     session_ttl_seconds: float = 900.0
     server_clock_skew_seconds: float = 0.0
     sold_out_trains: set[str] = field(default_factory=set)
+    require_account: bool = True
+    """Require IRCTC_USERNAME / IRCTC_PASSWORD in the environment, like a real login."""
+    reject_password: bool = False
+    """Simulate a wrong password."""
 
 
 class MockProvider(BookingProvider):
@@ -104,10 +109,17 @@ class MockProvider(BookingProvider):
 
     # --------------------------------------------------------------- session
     async def begin_login(self) -> LoginChallenge:
-        # A real provider would read IRCTC_USERNAME / IRCTC_PASSWORD here from the
-        # environment or a secret manager. The mock needs no credentials.
+        who = "demo user"
+        if self.s.require_account:
+            account = load_account()  # raises FatalError if the env vars are missing
+            if self.s.reject_password:
+                raise FatalError("Invalid user id or password")
+            who = account.masked_username
         self._pending_login = True
-        return LoginChallenge(otp_required=True, message="OTP sent to the registered mobile (mock OTP is 123456)")
+        return LoginChallenge(
+            otp_required=True,
+            message=f"Signed in as {who}; OTP sent to the registered mobile (mock OTP is 123456)",
+        )
 
     async def complete_login(self, otp: str | None) -> None:
         if not self._pending_login:

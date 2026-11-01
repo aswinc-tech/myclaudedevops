@@ -82,12 +82,15 @@ tatkal-agent run "Tatkal for 2 people NDLS to MMCT on 2026-11-20, 3A preferred, 
 tatkal-agent serve                          # MCP server on stdio
 ```
 
-In the simulator the OTP is `123456`.
+In the simulator the OTP is `123456`. `run` and `serve` need `IRCTC_USERNAME` / `IRCTC_PASSWORD` set; the simulator accepts any values, and `drill` needs none.
+
+Login flow: user id and password from the environment, then the Aadhaar-linked OTP typed by the traveller. A wrong password fails immediately and is never retried automatically, because repeated failures lock IRCTC accounts.
 
 ### Configuration (environment variables)
 
 | Variable | Default | Meaning |
 |---|---|---|
+| `IRCTC_USERNAME`, `IRCTC_PASSWORD` | (required) | Traveller's IRCTC login. Populate from a secret manager, never commit. Held as `SecretStr`; the username is masked in prompts and the password never reaches tools, logs or the LLM |
 | `TATKAL_PROVIDER` | `mock` | `mock` or `partner` |
 | `MOCK_WINDOW_OPENS_IN_SECONDS` | `20` | Simulator window offset, or `real` for the real 10:00/11:00 schedule |
 | `TATKAL_PROFILE` | `profile.json` | Passenger profile path (falls back to the example) |

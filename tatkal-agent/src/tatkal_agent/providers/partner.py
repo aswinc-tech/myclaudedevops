@@ -16,6 +16,7 @@ from __future__ import annotations
 import os
 from datetime import date, datetime
 
+from ..account import load_account
 from ..errors import FatalError
 from ..models import Availability, BookingOption, BookingPlan, BookingResult, Train
 from .base import BookingProvider, LoginChallenge
@@ -40,8 +41,12 @@ class PartnerApiProvider(BookingProvider):
         raise NotImplementedError(_NOT_CONFIGURED)
 
     async def begin_login(self) -> LoginChallenge:
-        # e.g. POST {base_url}/session with IRCTC user id from os.environ["IRCTC_USERNAME"];
-        # the partner flow triggers the Aadhaar-linked OTP to the user's phone.
+        account = load_account()  # IRCTC user id + password from env / secret manager
+        # Send account.username.get_secret_value() / account.password.get_secret_value()
+        # to the partner's login endpoint over TLS here. The partner flow then triggers the
+        # Aadhaar-linked OTP to the user's phone; return otp_required=True.
+        # Do not retry a rejected password automatically: repeated failures lock the account.
+        del account
         raise NotImplementedError(_NOT_CONFIGURED)
 
     async def complete_login(self, otp: str | None) -> None:

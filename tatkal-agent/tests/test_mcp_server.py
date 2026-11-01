@@ -94,3 +94,25 @@ async def test_passenger_pii_not_exposed_to_agent_reads():
         av = data(await c.call_tool("check_availability",
                                     {"train_number": "12951", "travel_class": "3A", "journey_date": JD}))
         assert av["passengers"] == 2 and "Asha" not in json.dumps(av)
+
+
+async def test_login_uses_env_account_and_never_leaks_password(capsys):
+    async with Client(server(), mode="legacy", elicitation_callback=(human := ScriptedHuman())) as c:
+        out = json.dumps(data(await c.call_tool("login", {})))
+    assert '"logged_in": true' in out
+    assert "placeholder-not-a-real-password" not in out + capsys.readouterr().err + " ".join(human.seen)
+    assert "demo_user01" not in " ".join(human.seen), "username is masked in prompts"
+
+
+async def test_missing_account_fails_closed(monkeypatch):
+    monkeypatch.delenv("IRCTC_PASSWORD")
+    async with Client(server(), mode="legacy", elicitation_callback=ScriptedHuman()) as c:
+        out = data(await c.call_tool("login", {}))
+    assert out["logged_in"] is False and "IRCTC_PASSWORD" in out["error"]
+
+
+async def test_wrong_password_fails_without_otp_prompt():
+    human = ScriptedHuman()
+    async with Client(server(reject_password=True), mode="legacy", elicitation_callback=human) as c:
+        out = data(await c.call_tool("login", {}))
+    assert out["logged_in"] is False and human.seen == []

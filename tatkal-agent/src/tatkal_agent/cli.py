@@ -62,7 +62,7 @@ def _cmd_drill(args: argparse.Namespace) -> None:
     from .retry import RetryPolicy
 
     async def go() -> None:
-        provider = MockProvider(MockScenario(seed=args.seed, window_opens_in_seconds=3,
+        provider = MockProvider(MockScenario(seed=args.seed, window_opens_in_seconds=3, require_account=False,
                                              sold_out_trains={"SOLD1"}))
         jd = date.today() + timedelta(days=1)
         trains = await provider.search_trains("NDLS", "MMCT", jd)
