@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tatkal-agent"
+version = "0.1.0"
+description = "Agentic Tatkal booking assistant: Claude planner, MCP tools, human-in-the-loop, deterministic retrying executor"
+requires-python = ">=3.11"
+dependencies = [
+  "anthropic[mcp]>=2.3",
+  "mcp>=2.3",
+  "pydantic>=2.7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+tatkal-agent = "tatkal_agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+asyncio_default_fixture_loop_scope = "function"
