@@ -1,0 +1,667 @@
+<title>Tatkal Copilot</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a station departure board (countdown + live booking) on the left, the prepared plan and checklist on the right; stacks to one column on phones, board first. */
+:root {
+  --bg: #eef1f6; --surface: #ffffff; --ink: #14213a; --muted: #586379; --line: #d5dbe6;
+  --maroon: #8a1c2b; --maroon-ink: #ffffff; --soft: #e4e9f2;
+  --board: #0f1724; --board-line: #243149; --led: #ffb020; --led-dim: #7a5a1c; --board-ink: #e8edf6;
+  --ok: #1d7a4b; --ok-ink: #ffffff; --warn: #a75a06; --bad: #b42318;
+  --ok-bg: #e2f3ea; --warn-bg: #fbefdc; --bad-bg: #fbe5e3;
+  --display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0b1019; --surface: #131a27; --ink: #e5e9f1; --muted: #98a2b6; --line: #263044;
+  --maroon: #c94457; --maroon-ink: #ffffff; --soft: #1b2434;
+  --board: #070b12; --board-line: #1f2a3d; --led: #ffb020; --led-dim: #6b4f18; --board-ink: #e8edf6;
+  --ok: #4cc38a; --ok-ink: #07150d; --warn: #f0a43a; --bad: #f07068;
+  --ok-bg: #12301f; --warn-bg: #33240d; --bad-bg: #3a1714;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0b1019; --surface: #131a27; --ink: #e5e9f1; --muted: #98a2b6; --line: #263044;
+  --maroon: #c94457; --maroon-ink: #ffffff; --soft: #1b2434;
+  --board: #070b12; --board-line: #1f2a3d; --led: #ffb020; --led-dim: #6b4f18; --board-ink: #e8edf6;
+  --ok: #4cc38a; --ok-ink: #07150d; --warn: #f0a43a; --bad: #f07068;
+  --ok-bg: #12301f; --warn-bg: #33240d; --bad-bg: #3a1714;
+  color-scheme: dark; }
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px 40px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 16px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 700; letter-spacing: .01em; margin: 0; text-wrap: balance; line-height: 1.1; }
+h2 { font-size: 1.45rem; }
+h3 { font-size: 1.15rem; }
+p { margin: 0; }
+.muted { color: var(--muted); }
+.small { font-size: .85rem; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+a { color: var(--maroon); }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); padding: 9px 14px; font-weight: 600; }
+button:hover { border-color: var(--muted); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--led); outline-offset: 2px; }
+button.primary { background: var(--maroon); color: var(--maroon-ink); border-color: var(--maroon); }
+button.ok { background: var(--ok); color: var(--ok-ink); border-color: var(--ok); }
+button.bad { color: var(--bad); border-color: var(--bad); background: transparent; }
+button.ghost { background: transparent; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+input, select { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 100%; min-width: 0; }
+label { display: grid; gap: 4px; font-size: .82rem; color: var(--muted); font-weight: 500; }
+
+/* top bar */
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand h1 { font-size: 1.9rem; }
+.quota { font-family: var(--mono); font-size: .75rem; border: 1.5px solid var(--maroon); color: var(--maroon); border-radius: 4px; padding: 1px 6px; letter-spacing: .08em; }
+.clock { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.clock .now { font-family: var(--mono); font-size: 1.15rem; font-weight: 600; }
+.chip { font-size: .78rem; font-weight: 600; border-radius: 999px; padding: 3px 10px; border: 1px solid var(--line); background: var(--surface); white-space: nowrap; }
+.chip.ok { color: var(--ok); background: var(--ok-bg); border-color: transparent; }
+.chip.warn { color: var(--warn); background: var(--warn-bg); border-color: transparent; }
+
+.grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.col { display: grid; gap: 16px; min-width: 0; }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 14px; min-width: 0; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+
+/* departure board */
+.board { background: var(--board); color: var(--board-ink); border-radius: 16px; padding: 18px; display: grid; gap: 14px; border: 1px solid var(--board-line); }
+.board .route { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; font-family: var(--display); font-size: 1.25rem; letter-spacing: .03em; text-transform: uppercase; }
+.board .route .train { color: var(--led); }
+.count { font-family: var(--mono); font-weight: 600; color: var(--led); font-size: clamp(2.6rem, 11vw, 5.2rem); line-height: 1; letter-spacing: .02em; font-variant-numeric: tabular-nums; text-shadow: 0 0 18px color-mix(in srgb, var(--led) 35%, transparent); overflow-wrap: anywhere; }
+.count.open { color: #5ee08f; text-shadow: 0 0 18px rgba(94,224,143,.35); }
+.count-label { font-size: .9rem; color: #aeb8cb; }
+.cue { border-top: 1px dashed var(--board-line); padding-top: 12px; display: grid; gap: 4px; }
+.cue .when { font-family: var(--mono); font-size: .8rem; color: var(--led); letter-spacing: .06em; text-transform: uppercase; }
+.cue .what { font-size: 1.05rem; font-weight: 600; }
+.cue.flash { animation: flash 1s ease 3; }
+@keyframes flash { 50% { background: color-mix(in srgb, var(--led) 25%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .cue.flash { animation: none; } }
+.milestones { display: flex; gap: 6px; flex-wrap: wrap; }
+.ms { font-family: var(--mono); font-size: .72rem; border: 1px solid var(--board-line); color: #aeb8cb; border-radius: 4px; padding: 2px 7px; }
+.ms.done { border-color: var(--led-dim); color: var(--led); }
+.board .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.board button { background: transparent; color: var(--board-ink); border-color: var(--board-line); }
+.board button.armed { border-color: var(--led); color: var(--led); }
+
+/* live booking */
+.option-card { border: 2px solid var(--maroon); border-radius: 12px; padding: 14px; display: grid; gap: 6px; }
+.option-card .k { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+.option-card .v { font-family: var(--display); font-size: 1.7rem; font-weight: 700; line-height: 1.1; }
+.option-card .meta { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .88rem; color: var(--muted); }
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.callout { border-radius: 10px; padding: 12px 14px; display: grid; gap: 8px; }
+.callout.warn { background: var(--warn-bg); }
+.callout.ok { background: var(--ok-bg); }
+.callout.bad { background: var(--bad-bg); }
+.callout ol { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
+.pnr { font-family: var(--mono); font-size: 1.6rem; font-weight: 600; letter-spacing: .08em; }
+.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 220px; overflow: auto; font-size: .86rem; }
+.log li { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 10px; }
+.log time { font-family: var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* plan */
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.opts { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.opt { display: grid; grid-template-columns: 26px minmax(0, 1.1fr) minmax(0, 1.6fr) 74px minmax(0, 1.2fr) auto; gap: 6px; align-items: center; border: 1px solid var(--line); border-radius: 10px; padding: 8px; }
+.opt .n { font-family: var(--mono); font-weight: 600; color: var(--maroon); text-align: center; }
+.opt .win { grid-column: 2 / -1; font-size: .78rem; color: var(--muted); font-family: var(--mono); }
+.opt .tools { display: flex; gap: 4px; }
+.opt .tools button { padding: 6px 8px; font-size: .8rem; }
+.opt.current { border-color: var(--maroon); box-shadow: inset 3px 0 0 var(--maroon); }
+.opt.gone { opacity: .55; }
+@media (max-width: 560px) {
+  .opt { grid-template-columns: 26px minmax(0,1fr) minmax(0,1fr); }
+  .opt .name { grid-column: 2 / -1; grid-row: 2; }
+  .opt .orig { grid-column: 2 / 3; }
+  .opt .tools { grid-column: 3 / 4; justify-content: end; }
+  .opt .win { grid-column: 1 / -1; }
+}
+.example { font-size: .78rem; font-weight: 600; color: var(--warn); background: var(--warn-bg); border-radius: 999px; padding: 2px 10px; }
+.claude-out { border: 1px dashed var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 8px; font-size: .9rem; }
+.claude-out ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; }
+
+/* checklist */
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.checks label { display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 10px; align-items: start; padding: 8px 6px; border-radius: 8px; color: var(--ink); font-size: .92rem; font-weight: 400; cursor: pointer; }
+.checks label:hover { background: var(--soft); }
+.checks input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--ok); }
+.checks b { font-weight: 600; }
+.progress { height: 6px; background: var(--soft); border-radius: 99px; overflow: hidden; }
+.progress i { display: block; height: 100%; background: var(--ok); width: 0; transition: width .3s; }
+footer { font-size: .8rem; color: var(--muted); max-width: 70ch; }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><h1>Tatkal Copilot</h1><span class="quota" title="Tatkal quota code">TQ</span></div>
+    <div class="clock">
+      <span class="muted small">IST</span><span class="now" id="now">--:--:--</span>
+      <span class="chip" id="syncChip">Syncing clock…</span>
+    </div>
+  </header>
+
+  <main class="grid">
+    <div class="col">
+      <section class="board" aria-live="polite">
+        <div class="route"><span id="bRoute">—</span><span class="train" id="bTrain">—</span></div>
+        <div>
+          <div class="count" id="count">--:--:--</div>
+          <div class="count-label" id="countLabel">—</div>
+        </div>
+        <div class="milestones" id="milestones"></div>
+        <div class="cue" id="cue"><span class="when" id="cueWhen">Next</span><span class="what" id="cueWhat">—</span></div>
+        <div class="actions">
+          <button id="arm" type="button">Turn on alerts</button>
+          <button id="resync" type="button">Re-sync clock</button>
+        </div>
+      </section>
+
+      <section class="panel" id="live">
+        <div class="panel-head"><h2>Booking now</h2><span class="muted small" id="liveStep">—</span></div>
+        <div id="liveBody"></div>
+        <div>
+          <h3 style="margin-bottom:6px">What happened</h3>
+          <ul class="log" id="log"></ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="panel" id="plan">
+        <div class="panel-head"><h2>Your plan</h2><span class="example" id="exampleTag">Example plan, replace with yours</span></div>
+        <div class="fields">
+          <label>From<input id="fFrom" maxlength="6" autocomplete="off"></label>
+          <label>To<input id="fTo" maxlength="6" autocomplete="off"></label>
+          <label>Journey date<input id="fDate" type="date"></label>
+          <label>Passengers<select id="fPax"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+          <label>Most you'll pay (₹, all)<input id="fCap" type="number" min="0" step="50" inputmode="numeric"></label>
+        </div>
+        <div class="panel-head"><h3>Options, tried in this order</h3><span class="muted small">AC 10:00 · non-AC 11:00</span></div>
+        <ul class="opts" id="opts"></ul>
+        <div class="btn-row">
+          <button id="addOpt" type="button">Add option</button>
+          <button id="askClaude" type="button" hidden>Ask Claude to review my plan</button>
+          <button id="resetRun" type="button" class="ghost">Restart from option 1</button>
+        </div>
+        <div class="claude-out" id="claudeOut" hidden></div>
+        <p class="muted small">"Same day" or "Day before" is when the train leaves its <b>origin</b> station, compared with your journey date. Tatkal opens the day before the origin date, so a train that started the day before opens a day earlier for you.</p>
+      </section>
+
+      <section class="panel" id="check">
+        <div class="panel-head"><h2>Ready the night before</h2><span class="muted small" id="checkCount">0 of 0</span></div>
+        <div class="progress"><i id="checkBar"></i></div>
+        <ul class="checks" id="checks"></ul>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    Tatkal Copilot does not log in to IRCTC or book for you. You book on the official IRCTC app or website. This page times you, keeps your backup options ready and walks you through problems. Your plan is saved only in this browser.
+    Official links: <a href="https://www.irctc.co.in/nget/train-search" target="_blank" rel="noopener">IRCTC booking</a> ·
+    <a href="https://www.indianrail.gov.in/enquiry/PNR/PnrEnquiry.html?locale=en" target="_blank" rel="noopener">PNR status</a>
+  </footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const AC = new Set(["1A", "2A", "3A", "3E", "CC", "EC"]);
+  const CLASSES = ["1A", "2A", "3A", "3E", "CC", "EC", "SL", "2S"];
+  const KEY = "tatkal-copilot-v1";
+  const IST_MS = 5.5 * 3600 * 1000;
+
+  // ---------- element helper (always textContent, never innerHTML for user data)
+  function h(tag, attrs, ...kids) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (v == null || v === false) continue;
+      if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+      else if (k === "class") el.className = v;
+      else if (k === "value") el.value = v;
+      else el.setAttribute(k, v === true ? "" : v);
+    }
+    for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid.nodeType ? kid : String(kid));
+    return el;
+  }
+
+  // ---------- state
+  function isoDate(d) { return d.toISOString().slice(0, 10); }
+  function istToday() { return new Date(Date.now() + IST_MS); }
+  function exampleState() {
+    const jd = istToday(); jd.setUTCDate(jd.getUTCDate() + 2);
+    return {
+      example: true, from: "NDLS", to: "MMCT", date: isoDate(jd), pax: "2", cap: "9000",
+      options: [
+        { train: "12952", name: "Mumbai Rajdhani", cls: "3A", early: 0 },
+        { train: "12952", name: "Mumbai Rajdhani", cls: "2A", early: 0 },
+        { train: "", name: "Your non-AC backup", cls: "SL", early: 0 },
+      ],
+      checks: {},
+      run: { index: 0, status: "planning", pnr: "", pnrStatus: "", events: [], payment: false, booking: false },
+    };
+  }
+  function load() {
+    try { const s = JSON.parse(localStorage.getItem(KEY) || "null"); if (s && Array.isArray(s.options)) return s; } catch (e) {}
+    return exampleState();
+  }
+  let S = load();
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+
+  // ---------- clock sync (server Date header, second-tick detection)
+  let offset = 0, syncSource = "device", syncErr = null;
+  const now = () => Date.now() + offset;
+
+  async function syncClock() {
+    const chip = $("syncChip");
+    chip.className = "chip"; chip.textContent = "Syncing clock…";
+    try {
+      let prev = null, best = null, n = 0;
+      const stopAt = Date.now() + 3500;
+      while (Date.now() < stopAt && n < 90) {
+        const t0 = Date.now();
+        const r = await fetch("time.txt?probe=" + t0 + "-" + n, { cache: "no-store" });
+        const t1 = Date.now(); n++;
+        try { r.body && r.body.cancel(); } catch (e) {}
+        const d = Date.parse(r.headers.get("date") || "");
+        if (!r.ok || isNaN(d)) throw new Error("no server time");
+        const cur = { mid: (t0 + t1) / 2, d, rtt: t1 - t0 };
+        if (prev && cur.d - prev.d === 1000) {
+          const err = (cur.mid - prev.mid) / 2;
+          const off = cur.d - (prev.mid + cur.mid) / 2;
+          if (!best || err < best.err) best = { off, err };
+          if (err < 40) break;
+        }
+        prev = cur;
+        await new Promise((r) => setTimeout(r, 35)); // spread probes so one straddles a second tick
+      }
+      if (!best && prev) best = { off: prev.d + 500 - prev.mid, err: 500 + prev.rtt / 2 };
+      if (!best) throw new Error("no samples");
+      offset = best.off; syncErr = best.err; syncSource = "internet";
+      const drift = Math.round(offset);
+      chip.className = "chip ok";
+      chip.textContent = `Internet time ±${Math.max(1, Math.round(syncErr))} ms`;
+      chip.title = `Your device clock is ${Math.abs(drift)} ms ${drift >= 0 ? "behind" : "ahead"}. The countdown corrects for it.`;
+      logEvent(`Clock synced to internet time (±${Math.round(syncErr)} ms). Device clock was ${Math.abs(drift)} ms ${drift >= 0 ? "behind" : "ahead"}.`);
+    } catch (e) {
+      offset = 0; syncSource = "device"; syncErr = null;
+      chip.className = "chip warn"; chip.textContent = "Using device clock";
+      chip.title = "Could not reach the time server. Make sure your phone's time is set automatically.";
+    }
+  }
+
+  // ---------- Tatkal window maths
+  function optWindow(o) {
+    if (!S.date) return null;
+    const [y, m, d] = S.date.split("-").map(Number);
+    const hour = AC.has(o.cls) ? 10 : 11;
+    // opens the day before the train leaves its origin station
+    return Date.UTC(y, m - 1, d - 1 - (Number(o.early) || 0), hour, 0, 0) - IST_MS;
+  }
+  const fmtIST = (ms, withMs) => {
+    const d = new Date(ms + IST_MS);
+    const p = (x, n = 2) => String(x).padStart(n, "0");
+    return `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}` + (withMs ? "." + p(d.getUTCMilliseconds(), 3) : "");
+  };
+  const fmtDay = (ms) => new Date(ms + IST_MS).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+  function fmtCount(ms) {
+    const neg = ms < 0; ms = Math.abs(ms);
+    const t = Math.floor(ms / 1000), hh = Math.floor(t / 3600), mm = Math.floor((t % 3600) / 60), ss = t % 60;
+    const p = (x) => String(x).padStart(2, "0");
+    if (!neg && ms < 60000) return `${p(ss)}.${Math.floor((ms % 1000) / 100)}`;
+    if (hh >= 24) return `${Math.floor(hh / 24)}d ${p(hh % 24)}:${p(mm)}:${p(ss)}`;
+    return `${neg ? "+" : ""}${p(hh)}:${p(mm)}:${p(ss)}`;
+  }
+  const current = () => S.options[S.run.index];
+
+  // ---------- alerts
+  const MILESTONES = [
+    { at: -15 * 60e3, tag: "T-15m", text: "Open the IRCTC app. Check you have network and battery." },
+    { at: -5 * 60e3, tag: "T-5m", text: "Log in now and keep the app open. Don't log in on a second device." },
+    { at: -2 * 60e3, tag: "T-2m", text: "Search your route and date, pick Tatkal quota, and stay on the train list." },
+    { at: -30e3, tag: "T-30s", text: "Hands ready: your class tab, then Master List passengers, then pay." },
+    { at: 0, tag: "OPEN", text: "Book now. Tap your class and go." },
+  ];
+  let audio = null, wakeLock = null, armed = false;
+  const fired = new Set();
+  function beep(freq, dur, when = 0) {
+    if (!audio) return;
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = freq; o.type = "sine";
+    const t = audio.currentTime + when;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.4, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(audio.destination); o.start(t); o.stop(t + dur + 0.02);
+  }
+  function buzz(pattern) { try { navigator.vibrate && navigator.vibrate(pattern); } catch (e) {} }
+  async function keepAwake() {
+    try { if ("wakeLock" in navigator && document.visibilityState === "visible") wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {}
+  }
+  document.addEventListener("visibilitychange", () => { if (armed && document.visibilityState === "visible") keepAwake(); });
+  $("arm").addEventListener("click", async () => {
+    if (armed) { armed = false; try { wakeLock && wakeLock.release(); } catch (e) {} wakeLock = null; renderArm(); return; }
+    try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); await audio.resume(); } catch (e) { audio = null; }
+    armed = true; beep(880, 0.12); buzz(60); await keepAwake(); renderArm();
+    logEvent("Alerts on" + (wakeLock ? ", screen kept awake." : ". Keep this screen on."));
+  });
+  function renderArm() {
+    const b = $("arm");
+    b.textContent = armed ? "Alerts on" + (wakeLock ? " · screen awake" : "") : "Turn on alerts";
+    b.classList.toggle("armed", armed);
+  }
+  $("resync").addEventListener("click", syncClock);
+
+  // ---------- tick
+  let lastPip = null, autoResynced = new Set();
+  function tick() {
+    const t = now();
+    $("now").textContent = fmtIST(t);
+    const o = current();
+    const done = S.run.status === "booked" || S.run.status === "exhausted";
+    if (!o || done) {
+      $("count").textContent = S.run.status === "booked" ? "BOOKED" : "—";
+      $("count").classList.toggle("open", S.run.status === "booked");
+      $("countLabel").textContent = S.run.status === "booked" ? "PNR saved below. Have a good journey." : "No options left.";
+      $("cueWhat").textContent = S.run.status === "booked" ? "Check your PNR status on the official site." : "See the suggestions under Booking now.";
+      $("cueWhen").textContent = "Done";
+      return;
+    }
+    const w = optWindow(o);
+    if (w == null) return;
+    const left = w - t;
+    $("count").textContent = left > 0 ? fmtCount(left) : fmtCount(left);
+    $("count").classList.toggle("open", left <= 0);
+    $("countLabel").textContent = left > 0
+      ? `${AC.has(o.cls) ? "AC" : "Non-AC"} Tatkal opens ${fmtIST(w)} IST, ${fmtDay(w)}`
+      : `Open since ${fmtIST(w)} IST. Confirmed berths on busy trains usually go within 1–2 minutes.`;
+
+    // milestones
+    const msWrap = $("milestones");
+    if (msWrap.childElementCount !== MILESTONES.length) { msWrap.replaceChildren(...MILESTONES.map((m) => h("span", { class: "ms" }, m.tag))); }
+    let next = null;
+    MILESTONES.forEach((m, i) => {
+      const passed = left <= -m.at;
+      msWrap.children[i].classList.toggle("done", passed);
+      if (!passed && !next) next = m;
+      const key = `${S.run.index}|${w}|${m.tag}`;
+      if (passed && !fired.has(key)) {
+        fired.add(key);
+        if (left > -m.at - 5000) { // only alert if we crossed it just now, not on reload hours later
+          $("cueWhen").textContent = m.tag; $("cueWhat").textContent = m.text;
+          const cue = $("cue"); cue.classList.remove("flash"); void cue.offsetWidth; cue.classList.add("flash");
+          if (armed) { if (m.at === 0) { beep(1000, 0.6); buzz([400, 100, 400]); } else { beep(660, 0.25); beep(660, 0.25, 0.35); buzz([150, 80, 150]); } }
+          if (m.at === 0) logEvent(`Window open for option ${S.run.index + 1}: ${label(o)}.`);
+        }
+      }
+    });
+    if (next && left > 0) { $("cueWhen").textContent = `At ${next.tag} · ${fmtIST(w + next.at)}`; $("cueWhat").textContent = next.text; }
+    else if (left <= 0) { $("cueWhen").textContent = "OPEN"; $("cueWhat").textContent = MILESTONES[MILESTONES.length - 1].text; }
+
+    // pips at -5..-1 s, like a radio time signal
+    if (armed && left > 0 && left <= 5200) {
+      const s = Math.ceil(left / 1000);
+      if (s !== lastPip && s <= 5) { lastPip = s; beep(1000, 0.09); }
+    }
+    // re-sync once ~3 minutes before each window
+    const rk = `${w}`;
+    if (left < 180e3 && left > 150e3 && !autoResynced.has(rk)) { autoResynced.add(rk); syncClock(); }
+  }
+
+  // ---------- log
+  function logEvent(text) {
+    S.run.events.unshift({ t: now(), text });
+    S.run.events = S.run.events.slice(0, 60);
+    save(); renderLog();
+  }
+  function renderLog() {
+    const ul = $("log");
+    if (!S.run.events.length) { ul.replaceChildren(h("li", {}, h("time", {}, "—"), h("span", { class: "muted" }, "Nothing yet. Steps you take will be listed here with the exact time."))); return; }
+    ul.replaceChildren(...S.run.events.map((e) => h("li", {}, h("time", {}, fmtIST(e.t, true)), h("span", {}, e.text))));
+  }
+
+  const label = (o) => `${o.train || "(train no.)"} ${o.name ? o.name + " " : ""}· ${o.cls}`;
+
+  // ---------- live booking panel
+  function renderLive() {
+    const body = $("liveBody");
+    const n = S.options.length, i = S.run.index, o = current();
+    $("bRoute").textContent = `${S.from || "—"} → ${S.to || "—"}`;
+    $("bTrain").textContent = o && S.run.status !== "booked" && S.run.status !== "exhausted" ? `${o.train || "?"} · ${o.cls}` : (S.run.status === "booked" ? "Booked" : "—");
+
+    if (S.run.status === "booked") {
+      $("liveStep").textContent = "Done";
+      body.replaceChildren(h("div", { class: "callout ok" },
+        h("span", { class: "muted small" }, "PNR"),
+        h("span", { class: "pnr" }, S.run.pnr || "—"),
+        h("span", {}, `${S.run.pnrStatus || ""} on ${label(S.options[S.run.bookedIndex ?? i] || o || {})}`),
+        h("div", { class: "btn-row" },
+          h("button", { type: "button", onclick: (ev) => copy(S.run.pnr, ev.currentTarget) }, "Copy PNR"),
+          h("a", { href: "https://www.indianrail.gov.in/enquiry/PNR/PnrEnquiry.html?locale=en", target: "_blank", rel: "noopener" }, "Check PNR status")),
+        S.run.pnrStatus && S.run.pnrStatus !== "CNF" ? h("p", { class: "small" }, "RAC or waitlisted: watch the chart. It is prepared about 4 hours before departure (the first chart). Tatkal tickets are not refunded on cancellation if confirmed, so decide early.") : null));
+      return;
+    }
+    if (S.run.status === "exhausted") {
+      $("liveStep").textContent = "All options tried";
+      body.replaceChildren(h("div", { class: "callout bad" },
+        h("b", {}, "No confirmed berths on any planned option."),
+        h("ol", {},
+          h("li", {}, "If a non-AC option is still ahead, its window opens at 11:00. Add it now."),
+          h("li", {}, "Check the same trains in General quota. Waitlist there often clears better than Tatkal waitlist."),
+          h("li", {}, "Look for Premium Tatkal on trains that offer it (dynamic fare)."),
+          h("li", {}, "Cancellations can free berths; check again before chart preparation.")),
+        h("button", { type: "button", onclick: () => { S.run.index = 0; S.run.status = "planning"; logEvent("Restarted from option 1."); renderAll(); } }, "Start again from option 1")));
+      return;
+    }
+    $("liveStep").textContent = `Option ${i + 1} of ${n}`;
+    const w = o ? optWindow(o) : null;
+    const card = h("div", { class: "option-card" },
+      h("span", { class: "k" }, `Option ${i + 1} of ${n} · Tatkal`),
+      h("span", { class: "v" }, o ? label(o) : "Add an option"),
+      h("div", { class: "meta" },
+        h("span", {}, `${S.from || "?"} → ${S.to || "?"}`),
+        h("span", {}, `${S.pax} passenger${S.pax === "1" ? "" : "s"}`),
+        S.cap ? h("span", {}, `Pay at most ₹${Number(S.cap).toLocaleString("en-IN")}`) : null,
+        w ? h("span", {}, `Opens ${fmtIST(w)} IST ${fmtDay(w)}`) : null));
+
+    const actions = h("div", { class: "btn-row" },
+      h("button", { type: "button", class: "ok", onclick: () => { S.run.booking = true; S.run.payment = false; save(); renderLive(); } }, "Booked it"),
+      h("button", { type: "button", class: "primary", onclick: nextOption }, i + 1 < n ? `Sold out, go to option ${i + 2}` : "Sold out, no options left"),
+      h("button", { type: "button", class: "bad", onclick: () => { S.run.payment = !S.run.payment; S.run.booking = false; save(); renderLive(); if (S.run.payment) logEvent("Payment problem reported."); } }, "Payment problem"));
+
+    const nodes = [card, actions];
+    const nextO = S.options[i + 1];
+    if (nextO) {
+      const nw = optWindow(nextO);
+      nodes.push(h("p", { class: "small muted" }, `Next if this sells out: ${label(nextO)}` + (nw && nw !== w ? `, opens ${fmtIST(nw)} IST ${fmtDay(nw)}` : ", same window, switch immediately")));
+    }
+    if (S.run.payment) nodes.push(paymentHelp());
+    if (S.run.booking) nodes.push(pnrForm());
+    body.replaceChildren(...nodes);
+  }
+
+  function nextOption() {
+    const o = current();
+    logEvent(`No confirmed berths on option ${S.run.index + 1}: ${label(o)}.`);
+    S.run.payment = false; S.run.booking = false;
+    if (S.run.index + 1 < S.options.length) {
+      S.run.index += 1;
+      const n = current(); const w = optWindow(n);
+      logEvent(`Switched to option ${S.run.index + 1}: ${label(n)}` + (w > now() ? ` (opens ${fmtIST(w)} IST).` : ". Book now."));
+      if (armed) { beep(780, 0.15); buzz(120); }
+    } else { S.run.status = "exhausted"; logEvent("All planned options tried."); }
+    renderAll();
+  }
+
+  function paymentHelp() {
+    return h("div", { class: "callout warn" },
+      h("b", {}, "Payment problem: check before you pay again"),
+      h("ol", {},
+        h("li", {}, "Wait about a minute. Some payments confirm late."),
+        h("li", {}, "In the IRCTC app open My Account → My Transactions → Booked Ticket History. If the ticket is there, you are done."),
+        h("li", {}, "If there is no ticket, that booking failed. A debited amount for a failed booking is refunded automatically, usually within a few working days."),
+        h("li", {}, "Then book again with a fresh payment. Seats are going, so move quickly, but never skip step 2: it is how people end up paying twice.")),
+      h("div", { class: "btn-row" },
+        h("button", { type: "button", class: "ok", onclick: () => { logEvent("Ticket found in Booked Ticket History."); S.run.payment = false; S.run.booking = true; save(); renderLive(); } }, "Ticket is in my history"),
+        h("button", { type: "button", onclick: () => { logEvent("No ticket in history. Booking again with a new payment."); S.run.payment = false; save(); renderLive(); } }, "No ticket, booking again")));
+  }
+
+  function pnrForm() {
+    const pnr = h("input", { id: "pnrIn", inputmode: "numeric", maxlength: "10", placeholder: "10-digit PNR", autocomplete: "off" });
+    const st = h("select", { id: "pnrSt" }, ["CNF", "RAC", "WL"].map((x) => h("option", {}, x)));
+    const msg = h("span", { class: "small", role: "status" });
+    return h("form", { class: "callout ok", onsubmit: (e) => {
+      e.preventDefault();
+      const v = pnr.value.replace(/\D/g, "");
+      if (v.length !== 10) { msg.textContent = "A PNR has exactly 10 digits. Check the booking confirmation."; return; }
+      S.run.pnr = v; S.run.pnrStatus = st.value; S.run.status = "booked"; S.run.bookedIndex = S.run.index; S.run.booking = false;
+      logEvent(`Booked ${label(current())}. PNR ${v} (${st.value}).`);
+      if (armed) { beep(1320, 0.15); beep(1760, 0.3, 0.18); }
+      renderAll();
+    } },
+      h("b", {}, "Save your PNR"),
+      h("div", { class: "fields" }, h("label", {}, "PNR", pnr), h("label", {}, "Status", st)),
+      h("div", { class: "btn-row" }, h("button", { type: "submit", class: "ok" }, "Save PNR")), msg);
+  }
+
+  async function copy(text, btn) {
+    try { await navigator.clipboard.writeText(text); btn.textContent = "Copied"; }
+    catch (e) { btn.textContent = "Select and copy the number above"; }
+  }
+
+  // ---------- plan editor
+  function bindField(id, key, transform) {
+    const el = $(id);
+    el.value = S[key] ?? "";
+    el.addEventListener("input", () => { S[key] = transform ? transform(el.value) : el.value; S.example = false; save(); renderAll(false); });
+  }
+  bindField("fFrom", "from", (v) => v.toUpperCase().replace(/[^A-Z]/g, ""));
+  bindField("fTo", "to", (v) => v.toUpperCase().replace(/[^A-Z]/g, ""));
+  bindField("fDate", "date");
+  bindField("fPax", "pax");
+  bindField("fCap", "cap");
+
+  function renderOpts() {
+    const ul = $("opts");
+    ul.replaceChildren(...S.options.map((o, i) => {
+      const winText = () => { const w = optWindow(o); return w ? `${AC.has(o.cls) ? "AC" : "Non-AC"} window ${fmtIST(w)} IST, ${fmtDay(w)}` : "Set a journey date"; };
+      const win = h("span", { class: "win" }, winText());
+      // update in place so typing never loses focus
+      const upd = (k, xf) => (e) => { o[k] = xf ? xf(e.target.value) : e.target.value; S.example = false; save(); win.textContent = winText(); $("exampleTag").hidden = true; renderLive(); };
+      return h("li", { class: "opt" + (i === S.run.index && S.run.status !== "booked" ? " current" : "") + (i < S.run.index ? " gone" : "") },
+        h("span", { class: "n" }, i + 1),
+        h("input", { "aria-label": `Option ${i + 1} train number`, id: `ot${i}`, value: o.train, placeholder: "Train no.", inputmode: "numeric", maxlength: "5", oninput: upd("train", (v) => v.replace(/\D/g, "")) }),
+        h("input", { class: "name", "aria-label": `Option ${i + 1} train name`, id: `on${i}`, value: o.name, placeholder: "Name (optional)", oninput: upd("name") }),
+        h("select", { "aria-label": `Option ${i + 1} class`, id: `oc${i}`, onchange: upd("cls") }, CLASSES.map((c) => h("option", { selected: c === o.cls }, c))),
+        h("select", { class: "orig", "aria-label": `Option ${i + 1}: day the train leaves its origin`, title: "Day the train leaves its origin station", id: `oe${i}`, onchange: upd("early", Number) },
+          h("option", { value: "0", selected: !o.early }, "Same day"),
+          h("option", { value: "1", selected: o.early === 1 }, "Day before")),
+        h("span", { class: "tools" },
+          h("button", { type: "button", "aria-label": "Move up", disabled: i === 0, onclick: () => move(i, -1) }, "↑"),
+          h("button", { type: "button", "aria-label": "Move down", disabled: i === S.options.length - 1, onclick: () => move(i, 1) }, "↓"),
+          h("button", { type: "button", "aria-label": "Remove option", disabled: S.options.length === 1, onclick: () => { S.options.splice(i, 1); if (S.run.index >= S.options.length) S.run.index = S.options.length - 1; save(); renderAll(); } }, "✕")),
+        win);
+    }));
+  }
+  function move(i, d) {
+    const j = i + d; [S.options[i], S.options[j]] = [S.options[j], S.options[i]]; S.example = false; save(); renderAll();
+  }
+  $("addOpt").addEventListener("click", () => {
+    if (S.options.length >= 6) return;
+    S.options.push({ train: "", name: "", cls: "SL", early: 0 }); S.example = false; save(); renderAll();
+    const el = $(`ot${S.options.length - 1}`); el && el.focus();
+  });
+  $("resetRun").addEventListener("click", () => {
+    S.run = { index: 0, status: "planning", pnr: "", pnrStatus: "", events: S.run.events, payment: false, booking: false };
+    logEvent("Restarted from option 1."); renderAll();
+  });
+
+  // ---------- checklist
+  const CHECKS = [
+    ["aadhaar", "IRCTC account is <b>Aadhaar-verified</b>. Tatkal needs it, and the OTP goes to the linked mobile."],
+    ["master", "Passengers saved in <b>Master List</b> with names and ages exactly as on their ID."],
+    ["pay", "<b>Payment ready</b>: IRCTC eWallet topped up, or UPI app logged in with enough balance."],
+    ["confirm", "Plan to tick <b>Book only if confirmed berths are allotted</b> so you don't get waitlisted by surprise."],
+    ["phone", "The phone that gets the OTP is with you, charged, with signal."],
+    ["onedevice", "Use <b>one device and one login</b>. Logging in twice can end the first session."],
+    ["app", "IRCTC app updated last night, and you can log in."],
+    ["net", "A backup network ready (mobile data if Wi-Fi drops)."],
+  ];
+  function renderChecks() {
+    const ul = $("checks");
+    let done = 0;
+    ul.replaceChildren(...CHECKS.map(([k, html]) => {
+      const on = !!S.checks[k]; if (on) done++;
+      const span = document.createElement("span"); span.innerHTML = html; // static copy only
+      return h("li", {}, h("label", {}, h("input", { type: "checkbox", id: `ck-${k}`, checked: on, onchange: (e) => { S.checks[k] = e.target.checked; save(); renderChecks(); } }), span));
+    }));
+    $("checkCount").textContent = `${done} of ${CHECKS.length} ready`;
+    $("checkBar").style.width = `${(done / CHECKS.length) * 100}%`;
+  }
+
+  // ---------- Ask Claude (viewer's own Claude account, optional)
+  let sample = null;
+  (async () => {
+    try { sample = window.claude && (await window.claude.use("sample")); } catch (e) { sample = null; }
+    $("askClaude").hidden = !sample;
+  })();
+  $("askClaude").addEventListener("click", async () => {
+    const out = $("claudeOut"), btn = $("askClaude");
+    out.hidden = false; out.replaceChildren(h("span", { class: "muted" }, "Thinking… (Claude can't see live availability; it reviews the plan from general knowledge)"));
+    btn.disabled = true;
+    const lines = S.options.map((o, i) => `${i + 1}. train ${o.train || "unknown"} ${o.name || ""}, class ${o.cls}, ${o.early ? "train starts 1 day before the journey date at its origin" : "train starts on the journey date"}`).join("\n");
+    const prompt = `You are helping one traveller prepare for an Indian Railways Tatkal booking on the official IRCTC app. You cannot see live seat availability or fares. Tatkal rules: AC classes (1A, 2A, 3A, 3E, CC, EC) open at 10:00 IST and non-AC (SL, 2S) at 11:00 IST, one day before the train leaves its origin station. Confirmed berths on busy trains often go within 1-2 minutes, so the order of options matters and a non-AC option is a second chance an hour after AC.
+
+Plan: ${S.from} to ${S.to}, journey date ${S.date}, ${S.pax} passenger(s), maximum total fare INR ${S.cap || "not set"}.
+Options in the traveller's current order:
+${lines}
+
+Reply with only a JSON object:
+{"order":[option numbers, best first, each exactly once],"notes":[{"option":1,"note":"one short sentence"}],"suggestions":["up to 3 short, concrete tips for this plan"],"fare_check":"one sentence on whether the cap looks enough, or an empty string"}`;
+    try {
+      const r = await sample.json(prompt, { modelTier: "default" });
+      const n = S.options.length;
+      const order = Array.isArray(r && r.order) ? r.order.map(Number) : [];
+      const valid = order.length === n && new Set(order).size === n && order.every((x) => x >= 1 && x <= n);
+      const kids = [h("b", {}, "Claude's review")];
+      if (valid) kids.push(h("p", {}, "Suggested order: " + order.map((x) => label(S.options[x - 1])).join("  →  ")));
+      const notes = Array.isArray(r.notes) ? r.notes.filter((x) => x && x.note) : [];
+      if (notes.length) kids.push(h("ul", {}, notes.map((x) => h("li", {}, `Option ${Number(x.option)}: ${String(x.note)}`))));
+      const sug = Array.isArray(r.suggestions) ? r.suggestions.slice(0, 3) : [];
+      if (sug.length) kids.push(h("ul", {}, sug.map((x) => h("li", {}, String(x)))));
+      if (r.fare_check) kids.push(h("p", { class: "small" }, String(r.fare_check)));
+      if (valid && order.some((x, i) => x !== i + 1)) {
+        kids.push(h("div", { class: "btn-row" }, h("button", { type: "button", class: "primary", onclick: () => {
+          S.options = order.map((x) => S.options[x - 1]); S.example = false; logEvent("Applied Claude's suggested order."); out.hidden = true; renderAll();
+        } }, "Use this order"), h("button", { type: "button", class: "ghost", onclick: () => { out.hidden = true; } }, "Keep my order")));
+      }
+      out.replaceChildren(...kids);
+    } catch (e) {
+      const why = { not_granted: "Claude wasn't allowed for this page.", rate_limited: "Too many requests right now. Try again in a minute.", sampling_disabled: "Claude isn't available on this account." }[e && e.code] || "Claude couldn't review the plan this time. Try again.";
+      out.replaceChildren(h("span", { class: "muted" }, why));
+      if (e && (e.code === "not_granted" || e.code === "sampling_disabled")) btn.hidden = true;
+    } finally { btn.disabled = false; }
+  });
+
+  // ---------- render
+  function renderAll(withForm = true) {
+    $("exampleTag").hidden = !S.example;
+    renderOpts(); renderLive(); renderLog(); tick();
+    if (withForm) for (const [id, k] of [["fFrom", "from"], ["fTo", "to"], ["fDate", "date"], ["fPax", "pax"], ["fCap", "cap"]]) if (document.activeElement !== $(id)) $(id).value = S[k] ?? "";
+  }
+  renderChecks();
+  renderArm();
+  renderAll();
+  setInterval(tick, 100);
+  syncClock();
+})();
+</script>

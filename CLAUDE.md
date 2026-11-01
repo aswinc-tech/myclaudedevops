@@ -7,10 +7,10 @@ This file provides instructions and context for AI assistants (such as Claude Co
 ## Project Overview
 
 - **Repository**: myclaudedevops
-- **Status**: Newly initialized — no framework or language is established yet
-- **Purpose**: DevOps project (to be defined as the codebase grows)
-
-As files and structure are added, update this section to reflect the chosen language, framework, and architecture.
+- **Status**: Contains `tatkal-agent/`, a Python 3.11+ agentic Tatkal booking assistant
+- **Stack**: Python, Anthropic SDK (Claude agent loop), MCP Python SDK v2 (`MCPServer`, elicitation for human-in-the-loop), pydantic
+- **Architecture**: Claude plans → MCP tools → human approves via elicitation → deterministic executor (no LLM in the hot path) → `BookingProvider` (mock simulator, or an authorised partner API skeleton)
+- **Boundary**: never add scraping/UI automation of IRCTC, CAPTCHA solving or multi-account logic (see `tatkal-agent/docs/COMPLIANCE.md`)
 
 ---
 
@@ -18,20 +18,30 @@ As files and structure are added, update this section to reflect the chosen lang
 
 ```
 myclaudedevops/
-├── CLAUDE.md          # This file — AI assistant instructions
-└── .git/              # Git metadata
+├── CLAUDE.md                     # This file — AI assistant instructions
+└── tatkal-agent/
+    ├── pyproject.toml
+    ├── profile.example.json      # fake passengers; real profile.json is git-ignored
+    ├── docs/                     # RESEARCH.md (user pain points), COMPLIANCE.md
+    ├── src/tatkal_agent/
+    │   ├── agent.py              # Claude agent loop over MCP tools
+    │   ├── mcp_server.py         # MCP tools + human-in-the-loop gates (elicitation)
+    │   ├── executor.py           # time-critical booking: clock sync, retries, fallbacks, reconciliation
+    │   ├── retry.py / clock.py / errors.py / models.py / profile.py
+    │   ├── providers/            # base.py interface, mock.py simulator, partner.py skeleton
+    │   └── cli.py                # tatkal-agent run | drill | serve
+    └── tests/
 ```
-
-> Update this tree as the project grows.
 
 ---
 
 ## Development Workflows
 
-No build, test, or lint commands are configured yet. When they are added, document them here:
+Run from `tatkal-agent/`:
 
-- **Build**: _TBD_
-- **Test**: _TBD_
+- **Install**: `pip install -e ".[dev]"`
+- **Test**: `python -m pytest -q`
+- **Simulator drill (no API key)**: `tatkal-agent drill` (or `PYTHONPATH=src python -m tatkal_agent.cli drill`)
 - **Lint**: _TBD_
 - **Format**: _TBD_
 
